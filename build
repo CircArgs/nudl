@@ -1,0 +1,16 @@
+#!/bin/sh
+
+rm -rf $PWD/cache
+mkdir $PWD/cache
+cp nimbase.h $PWD/cached
+
+nim c \
+--nimcache:$PWD/cache \
+--cc:gcc \
+--gcc.exe: "$PWD/nimnvcc" \
+--gcc.linkerexe: "$PWD/nimnvcc" \
+--gcc.cpp.options.debug: "-Xcompiler -Og" \
+--gcc.cpp.options.speed: "-Xcompiler -O3 -Xcompiler -fno-strict-aliasing" \
+--gcc.cpp.options.size: "-Xcompiler -Os" \
+--gcc.cpp.options.always:"--x cu -ccbin=gcc-5" \
+src/cuda.nim

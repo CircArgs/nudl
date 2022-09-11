@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "nvcc $@" | python nvcc.py
