@@ -20,3 +20,11 @@ def make_decl(code):
         current = code[slice(*m.span())]
         code = code.replace(current, gen_decl(kind) + " " + current)
     return code
+
+
+def pp(infile):
+    with open(infile) as f:
+        pp = make_decl(f.read())
+
+    with open(infile, "w") as f:
+        f.write(pp)

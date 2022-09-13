@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+"""
+nudl compiler
+write cuda in pure nim
+"""
+
+import sys
+import subprocess
+import re
+import os
+from nudl_python.nvcc import run
+
+nim_cmd = """nim c --nimcache:$PWD/nudl_cache -d:release --cc:clang --clang.exe: "$PWD/nudlcc" --clang.linkerexe: "$PWD/nudlcc" --clang.cpp.options.debug: "-Xcompiler -Og" --clang.cpp.options.speed: "-Xcompiler -O3" --clang.cpp.options.size: "-Xcompiler -Os" --clang.cpp.options.always:"--x cu --nudlfile FILE --nudlcache CACHE " """
+
+nim_file = re.compile(r".*?(?P<nim_file>[^\s]*?\.nim).*?$")
+
+
+def get_nim_file(cmd):
+    match = nim_file.search(cmd)
+    if match is not None:
+        return match.group("nim_file")
+
+
+cache_dir = re.compile(r".*?--nimcache\s*:\s*?(?P<cache_dir>.*?)\s")
+
+
+def get_cache_dir(cmd):
+    match = cache_dir.search(cmd)
+    if match is not None:
+        return match.group("cache_dir")
+
+
+if __name__ == "__main__":
+    cmd = ' '.join(sys.argv[1:])
+    print("CMD", cmd)
+    nim_input_file = os.path.abspath(run(f"echo {get_nim_file(cmd)}"))
+    print(nim_input_file)
+    cmd = nim_cmd.replace("FILE", nim_input_file) + cmd
+    nim_cache_dir = os.path.abspath(run(f"echo {get_cache_dir(cmd)}"))
+    print(nim_cache_dir)
+    subprocess.run(cmd.replace("CACHE", nim_cache_dir), shell=True)
