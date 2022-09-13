@@ -7,6 +7,7 @@ from nimnvcc_pp import pp
 
 DEBUG = True
 
+
 def catch_run(cmd):
     proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
@@ -19,22 +20,26 @@ def catch_run(cmd):
         stderr.decode("utf-8").strip(),
     )
 
+
 def log(*args):
     if DEBUG:
         with open(".nudl.log", "a") as f:
             for s in args:
-                f.write(s+" ")
+                f.write(s + " ")
             f.write("\n")
+
 
 def run(cmd):
     log(cmd)
-    p=subprocess.Popen(cmd, stdout = subprocess.PIPE, shell=True)
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
 
-    stdout= p.communicate()
+    stdout = p.communicate()
 
-    return stdout[0].decode('utf-8').strip()
+    return stdout[0].decode("utf-8").strip()
+
 
 unknown_option = re.compile(r".*?Unknown option\s+'(?P<option>.*)'.*")
+
 
 def try_command(cmd):
     """
@@ -56,16 +61,19 @@ def try_command(cmd):
     else:
         print(out)
 
-nudlcache=re.compile(r".*?--nudlcache\s(?P<nudlcache>.*?)\s.*")
-nudlfile=re.compile(r".*?--nudlfile\s(?P<nudlfile>.*?)\s.*")
+
+nudlcache = re.compile(r".*?--nudlcache\s(?P<nudlcache>.*?)\s.*")
+nudlfile = re.compile(r".*?--nudlfile\s(?P<nudlfile>.*?)\s.*")
+
 
 def get_nudl_arg(cmd, arg):
-    assert arg in ('nudlcache', 'nudlfile')
-    if arg=='nudlfile':
-        match=nudlfile.search(cmd)
+    assert arg in ("nudlcache", "nudlfile")
+    if arg == "nudlfile":
+        match = nudlfile.search(cmd)
     else:
-        match=nudlcache.search(cmd)
+        match = nudlcache.search(cmd)
     return match.group(arg)
+
 
 def intercept(cmd, pattern):
     return re.match(fr".*?{pattern}\.o.*?{pattern}.*", cmd) is not None
