@@ -4,7 +4,7 @@ mkdir $PWD/cache
 cp $PWD/nimbase.h $PWD/cache
 rm $PWD/commands.txt
 
-nim c \
+nim cc \
 --nimcache:$PWD/cache \
 -d:release \
 --cc:gcc \
