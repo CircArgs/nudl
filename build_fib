@@ -1,7 +1,0 @@
-#!/bin/sh
-
-rm -rf $PWD/cache
-mkdir $PWD/cache
-cp nimbase.h $PWD/cached
-
-nim c --nimcache:$PWD/cache --noMain --noLinking src/fib.nim

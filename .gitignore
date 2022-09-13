@@ -3,7 +3,7 @@ nimblecache/
 htmldocs/
 *cache/
 cached
-
+*.log
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
