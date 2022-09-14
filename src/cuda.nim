@@ -4,35 +4,17 @@ import sequtils, sugar
 type GpuArray[T] = object
   data: ref[ptr T]
   len: int
-    # __global__ void square(float * d_out, float * d_in){
-    #     int idx = threadIdx.x;
-    #     float f = d_in[idx];
-    #     d_out[idx] = f * f;
-    # }
-  # 
 
 {.emit: """
 #define NUDLGLOBAL __global__
-NUDLGLOBAL
-void __nudlglobal__square(float* d_out, float* d_in);
-void cuda_square(int bpg, int tpb, float * d_out, float * d_in){
-    __nudlglobal__square<<<bpg,tpb>>>(d_out, d_in);
-}
+#define NUDLDEVICE __device__
+#define NUDLHOST __host__
+#define NUDLNOINLINE __noinline__
+#define NUDLFORCEINLINE __forceinline__
+#define NUDLCONSTANT __constant__
+#define NUDLSHARED __shared__
+#define NUDLRESTRICT __restrict__
 """.}
-
-
-
-# proc cuda_square(bpg, tpb: cint, y: ptr cfloat, x: ptr cfloat) {.importc.}
-## Compute the square of x and store it in y
-## bpg: BlocksPerGrid
-## tpb: ThreadsPerBlock
-##
-##
-# type
-#   CudaIndex {.importc: "struct {x: unsigned int; y: unsigned int; z: unsigned int}", nodecl.} = object
-#     x, y, z: cuint
-
-proc cuda_square(bpg, tpb: cint, y: ptr cfloat, x: ptr cfloat) {.importc.}
 
 let threadIdx {.importc, used, nodecl.} : uint3
 let blockIdx  {.importc, used, nodecl.} : uint3
@@ -40,22 +22,45 @@ let gridDim   {.importc, used, nodecl.} : dim3
 let blockDim  {.importc, used, nodecl.} : dim3
 let warpSize  {.importc, used, nodecl.} : cint
 
+template syncthreads(): untyped =
+  {.emit: "__syncthreads()".}
+
+template threadfence(): untyped =
+  {.emit: "__threadfence()".}
+
+template threadfence_block(): untyped =
+  {.emit: "__threadfence_block()".}
+
+template threadfence_system(): untyped =
+  {.emit: "__threadfence_system()".}
+
+
+{.emit:"""
+NUDLGLOBAL
+void __nudlglobal__square(float* d_out, float* d_in);
+void cuda_square(int bpg, int tpb, float * d_out, float * d_in){
+    __nudlglobal__square<<<bpg,tpb>>>(d_out, d_in);
+}
+""".}
+
+proc cuda_square(bpg, tpb: cint, y: ptr cfloat, x: ptr cfloat) {.importc.}
+
 template cuda(body) =
   {.push stackTrace: off, checks: off, optimization: speed, exportc, used, cdecl.}
   body
   {.pop.}
 
-# import macros
-# dumpTree:
-{.push stackTrace: off, checks: off, optimization: speed.}
-proc square*(d_out, d_in: ptr cfloat){.exportc: "__nudlglobal__$1", cdecl.} =
-  let idx = threadIdx.x
-  let offset = cast[uint](idx)*cast[uint](sizeof(cfloat))
-  let in_addr = cast[ptr[cfloat]](cast[uint](d_in) + offset)
-  let out_addr = cast[ptr[cfloat]](cast[uint](d_out) + offset)
-  let f: cfloat = in_addr[]
-  out_addr[] = f * f
-{.pop.}
+import macros
+dumpTree:
+  {.push stackTrace: off, checks: off, optimization: speed.}
+  proc square*(d_out, d_in: ptr cfloat){.exportc: "__nudlglobal__$1", cdecl.} =
+    let idx = threadIdx.x
+    let offset = cast[uint](idx)*cast[uint](sizeof(cfloat))
+    let in_addr = cast[ptr[cfloat]](cast[uint](d_in) + offset)
+    let out_addr = cast[ptr[cfloat]](cast[uint](d_out) + offset)
+    let f: cfloat = in_addr[]
+    out_addr[] = f * f
+  {.pop.}
 
 proc cudaMalloc[T](size: int): ptr T {.noSideEffect.} =
   let s = size * sizeof(T)

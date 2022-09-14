@@ -21,13 +21,7 @@ file_pattern = file_in_cache.replace(".", "\.")
 
 # check if command is working with our input file
 if intercept(command, file_pattern):
-#     # put modified header file in
-#     shutil.copy2(Path(__file__).parent/"nimbase.h", nim_cache)
-#     # preprocess c file nim made with c preprocessor
-#     run(f"nvcc -E {file_in_cache} >> {temp_file_in_cache}")
-#     os.remove(file_in_cache)
-#     os.rename(temp_file_in_cache, file_in_cache)
-#     # make our mods with nudlpp
+    # make our mods with nudlpp
     pp(file_in_cache)
 
 try_command(command)
