@@ -9,11 +9,14 @@ type GpuArray[T] = object
     #     float f = d_in[idx];
     #     d_out[idx] = f * f;
     # }
-  # __global__ void __nimcudaglobal__square(float* d_out, float* d_in);
-{.emit: """
+  # 
 
+{.emit: """
+#define NUDLGLOBAL __global__
+NUDLGLOBAL
+void __nudlglobal__square(float* d_out, float* d_in);
 void cuda_square(int bpg, int tpb, float * d_out, float * d_in){
-    __nimcudaglobal__square<<<bpg,tpb>>>(d_out, d_in);
+    __nudlglobal__square<<<bpg,tpb>>>(d_out, d_in);
 }
 """.}
 
@@ -31,26 +34,28 @@ void cuda_square(int bpg, int tpb, float * d_out, float * d_in){
 
 proc cuda_square(bpg, tpb: cint, y: ptr cfloat, x: ptr cfloat) {.importc.}
 
-let threadIdx {.exportc, used, nodecl.} = default(uint3)
-let blockIdx {.exportc, used, nodecl.} = default(uint3)
-let gridDim {.exportc, used, nodecl.} = default(dim3)
-let blockDim {.exportc, used, nodecl.} = default(dim3)
-let warpSize {.exportc, used, nodecl.} = default(cint)
+let threadIdx {.importc, used, nodecl.} : uint3
+let blockIdx  {.importc, used, nodecl.} : uint3
+let gridDim   {.importc, used, nodecl.} : dim3
+let blockDim  {.importc, used, nodecl.} : dim3
+let warpSize  {.importc, used, nodecl.} : cint
 
 template cuda(body) =
-  {.push stackTrace: off, exportc, used, cdecl.}
+  {.push stackTrace: off, checks: off, optimization: speed, exportc, used, cdecl.}
   body
   {.pop.}
 
 # import macros
 # dumpTree:
-proc square*(d_out, d_in: ptr cfloat){.exportc: "__nudlglobal__$1", used.} =
+{.push stackTrace: off, checks: off, optimization: speed.}
+proc square*(d_out, d_in: ptr cfloat){.exportc: "__nudlglobal__$1", cdecl.} =
   let idx = threadIdx.x
   let offset = cast[uint](idx)*cast[uint](sizeof(cfloat))
   let in_addr = cast[ptr[cfloat]](cast[uint](d_in) + offset)
   let out_addr = cast[ptr[cfloat]](cast[uint](d_out) + offset)
   let f: cfloat = in_addr[]
   out_addr[] = f * f
+{.pop.}
 
 proc cudaMalloc[T](size: int): ptr T {.noSideEffect.} =
   let s = size * sizeof(T)
