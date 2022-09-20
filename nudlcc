@@ -1,2 +1,3 @@
 #!/bin/sh
+# nudl compiler helper
 echo "nvcc $@" | python ./nudl_python/nvcc.py

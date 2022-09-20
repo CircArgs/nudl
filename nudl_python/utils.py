@@ -5,10 +5,16 @@ import re
 from pathlib import Path
 import json
 from nimnvcc_pp import pp
+import warnings
+
+arg_splitter = re.compile(r'\s"?.*?"?\s?')
+
+def get_nim_c_files(cmd):
+    return [p for p in arg_splitter.split(cmd) if p.strip().endswith('.nim.c') and os.path.exists(p)]
 
 
-DEBUG = True
-ENV_VAR="NUDL_CALL"
+
+DEBUG = False
 
 def catch_run(cmd):
     proc = subprocess.Popen(
@@ -29,25 +35,7 @@ def catch_run(cmd):
             str(stderr),#.decode("utf-8").strip(),
         )
 
-nim_file = re.compile(r".*?(?P<nim_file>[^\s]*?\.nim).*?$")
 
-def get_nim_file(cmd):
-    match = nim_file.search(cmd)
-    if match is not None:
-        return match.group("nim_file")
-
-cache_dir = re.compile(r".*?--nimcache\s*:\s*?(?P<cache_dir>.*?)\s")
-
-def get_cache_dir(cmd):
-    match = cache_dir.search(cmd)
-    if match is not None:
-        return match.group("cache_dir")
-
-def write_nudl_cache_env(**kwargs):
-    os.environ[ENV_VAR]=json.dumps(kwargs)
-
-def read_nudl_cache_env():
-    return json.loads(os.environ[ENV_VAR])
 
 def log(*args):
     if DEBUG:
@@ -81,6 +69,7 @@ def try_command(cmd):
         match = unknown_option.search(err)
         if match is not None:
             option = match.group("option")
+            warnings.warn(f"{option} is unsupported by nvcc. Attempting without this.")
             try_command(cmd.replace(option, ""))
         else:
             print(err, file=sys.stderr)
@@ -90,20 +79,3 @@ def try_command(cmd):
         print(out)
 
 
-# nudlcache = re.compile(r".*?--nudlcache\s(?P<nudlcache>.*?)\s.*")
-# nudlfile = re.compile(r".*?--nudlfile\s(?P<nudlfile>.*?)\s.*")
-
-
-# def get_nudl_arg(cmd, arg):
-#     assert arg in ("nudlcache", "nudlfile")
-#     if arg == "nudlfile":
-#         match = nudlfile.search(cmd)
-#     else:
-#         match = nudlcache.search(cmd)
-#     return match.group(arg)
-
-
-def intercept(cmd, pattern):
-    log(cmd)
-    log(pattern)
-    return re.match(fr".*?{pattern}\.o.*?{pattern}.*", cmd) is not None

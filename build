@@ -4,12 +4,13 @@ mkdir $PWD/cache
 cp $PWD/nimbase.h $PWD/cache
 rm $PWD/commands.txt
 
+# --nimcache:$PWD/cache \
 nim c \
---nimcache:$PWD/cache \
 -d:release \
+--nimcache:$PWD/cache \
 --cc:gcc \
---gcc.exe: "$PWD/nimnvcc" \
---gcc.linkerexe: "$PWD/nimnvcc" \
+--gcc.exe: "$PWD/nudlcc" \
+--gcc.linkerexe: "$PWD/nudlcc" \
 --gcc.cpp.options.debug: "-Xcompiler -Og" \
 --gcc.cpp.options.speed: "-Xcompiler -O3" \
 --gcc.cpp.options.size: "-Xcompiler -Os" \

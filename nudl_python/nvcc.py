@@ -1,5 +1,5 @@
 """
-wrapper called bu nimnvcc to clean up flags
+wrapper called by nimnvcc to clean up flags
 """
 
 import shutil
@@ -7,21 +7,12 @@ import os
 from pathlib import Path
 from utils import *
 
-env=read_nudl_cache_env()
-
 command = sys.stdin.read().strip()
 command = command.replace("nvcc -c", "nvcc -c --x cu")
 
+nim_files = get_nim_c_files(command)
 
-nim_file = Path(env["nim_input_file"])
-nim_cache = Path(env["nim_cache_dir"])
-file_in_cache = str(nim_cache / ("@m"+nim_file.name+".c"))
-temp_file_in_cache=file_in_cache+".temp"
-file_pattern = file_in_cache.replace(".", "\.")
-
-# check if command is working with our input file
-if intercept(command, file_pattern):
-    # make our mods with nudlpp
-    pp(file_in_cache)
+for f in nim_files:
+    pp(f)
 
 try_command(command)
