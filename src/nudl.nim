@@ -1,12 +1,9 @@
-import nimcuda/[cuda_runtime_api, driver_types, nimcuda, vector_types]
-import sequtils, sugar
+import nimcuda/[cuda_runtime_api, nimcuda, vector_types]
 import macros, strformat
 import fusion/matching
 {.experimental: "caseStmtMacros".}
 
-type GpuArray*[T] = object
-  data: ref[ptr T]
-  len: int
+
 
 type
   CudaDecl* = enum
@@ -16,7 +13,7 @@ type
     noinline
     forceinline
 
-template nudl_announce*: untyped =
+template nudl_announce: untyped =
   nnkPragma.newTree(
       newColonExpr(
         newIdentNode("emit"),
@@ -24,7 +21,8 @@ template nudl_announce*: untyped =
     ))
 
 macro cuda*(prefix: CudaDecl, val: untyped): untyped =
-  val.addPragma(newColonExpr(ident"exportc", newLit(fmt"__nudl{prefix}__{val.name}")))
+  val.addPragma(newColonExpr(ident"exportc", newLit(
+      fmt"__nudl{prefix}__{val.name}")))
   val.addPragma(ident"cdecl")
   nnkStmtList.newTree(nudl_announce, val)
 
@@ -55,11 +53,11 @@ macro invoke*(numBlocks, blockSize: uint, val: untyped): untyped =
 # #endif
 # """.}
 
-let threadIdx* {.importc, used, nodecl.} : uint3
-let blockIdx*  {.importc, used, nodecl.} : uint3
-let gridDim*   {.importc, used, nodecl.} : dim3
-let blockDim*  {.importc, used, nodecl.} : dim3
-let warpSize*  {.importc, used, nodecl.} : cint
+let threadIdx* {.importc, used, nodecl.}: uint3
+let blockIdx* {.importc, used, nodecl.}: uint3
+let gridDim* {.importc, used, nodecl.}: dim3
+let blockDim* {.importc, used, nodecl.}: dim3
+let warpSize* {.importc, used, nodecl.}: cint
 
 template syncthreads*(): untyped =
   {.emit: "__syncthreads()".}
@@ -72,6 +70,14 @@ template threadfence_block*(): untyped =
 
 template threadfence_system*(): untyped =
   {.emit: "__threadfence_system()".}
+
+type 
+
+  GpuPointer*[T] =  ptr[T]
+  GpuArray*[T] = object
+    data: ref[GpuPointer[T]]
+    len: int
+
 
 proc cudaMalloc*[T](size: int): ptr T {.noSideEffect.} =
   let s = size * sizeof(T)
@@ -106,3 +112,22 @@ proc cpu*[T](g: GpuArray[T]): seq[T] {.noSideEffect.} =
                    size,
                    cudaMemcpyDeviceToHost)
 
+proc `[]`*[T](g: GpuArray[T]): GpuPointer[T] =
+  g.data[]
+
+proc `[]`*[T](g: GpuPointer[T], i: uint): T {.exportc: "__nudldevice__GpuPointer_getitem",  inline.}=
+  {.push checks: off.}
+  let offset = cast[uint](i)*cast[uint](sizeof(cfloat))
+  let offset_addr = cast[ptr[cfloat]](cast[uint](g) + offset)
+  result = offset_addr[]
+  {.pop.}
+
+proc `[]=`*[T](g: GpuPointer[T], i: uint, y: T) {.exportc: "__nudldevice__GpuPointer_setitem", inline.} =
+  {.push checks: off.}
+  let offset = cast[uint](i)*cast[uint](sizeof(cfloat))
+  let offset_addr = cast[ptr[cfloat]](cast[uint](g) + offset)
+  offset_addr[]= y
+  {.pop.}
+
+converter `ptr[T]`*[T](g: GpuArray[T]): GpuPointer[T] =
+  g[]

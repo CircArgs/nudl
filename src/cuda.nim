@@ -1,18 +1,14 @@
 ## This is an example
 ## 
-import nimcuda/[cuda_runtime_api, driver_types, nimcuda, vector_types]
+import nimcuda/[cuda_runtime_api, driver_types, nimcuda]
 import sequtils, sugar
 import nudl
 
 ## square is a kernel hence `global`
 ## cuda: global is the same as __global__ pragma in c
-proc square*(d_out, d_in: ptr cfloat){.cuda: global.} =
+proc square*(d_out, d_in: GpuPointer[cfloat]){.cuda: global.} =
   let idx = threadIdx.x
-  let offset = cast[uint](idx)*cast[uint](sizeof(cfloat))
-  let in_addr = cast[ptr[cfloat]](cast[uint](d_in) + offset)
-  let out_addr = cast[ptr[cfloat]](cast[uint](d_out) + offset)
-  let f: cfloat = in_addr[]
-  out_addr[] = f * f
+  d_out[idx]= d_in[idx]*d_in[idx]
 
 proc main() =
   let a = newSeq[cfloat](64)
@@ -23,9 +19,9 @@ proc main() =
   echo b
 
   var u = a.cuda
-  let v = b.cuda
+  var v = b.cuda
   # akin to calling square<<<1, 64>>> in c 
-  invoke 1, 64, square(u.data[], v.data[])
+  invoke 1, 64, square(u, v)
 
   check cudaDeviceSynchronize()
 

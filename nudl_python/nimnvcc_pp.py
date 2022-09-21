@@ -6,7 +6,7 @@ def log(*args):
             f.write(s + " ")
         f.write("\n")
 
-device_decl = re.compile(r"^.*?N_CDECL.*?__nudl(?P<kind>(global|host|device)+).*$", re.M)
+device_decl = re.compile(r"^.*?(N_CDECL|N_INLINE).*?__nudl(?P<kind>(global|host|device)+).*$", re.M)
 
 decls = ["global", "device", "host", "noinline", "forceinline"]
 
@@ -20,20 +20,16 @@ def gen_decl(kind):
 
 
 def make_decls(code):
-    matches = device_decl.finditer(code)
-    ret=[]
-    pos=0
-    for m in matches:
-        kind = m.group("kind")
-        decl=gen_decl(kind)
-        s, e = m.span()
-        s, e = s-pos, e-pos
-        pos=e
+    match = device_decl.search(code)
+    ret = []
+    while match:
+        s, e = match.span()
         ret.append(code[:s])
-        current = code[s:e]
-        rep = decl+'\n'+current
-        ret.append(rep)
+        kind = match.group('kind')
+        to = gen_decl(kind)
+        ret.append(f"\n{to}\n{code[s:e]}")
         code = code[e:]
+        match = device_decl.search(code)
     return ''.join(ret)+code
 
 invocation = re.compile(r"^.*?//nudlinvoke (?P<from>.*?) (?P<to>.*?)$", re.M)
