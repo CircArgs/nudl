@@ -4,7 +4,6 @@ import fusion/matching
 {.experimental: "caseStmtMacros".}
 
 
-
 type
   CudaDecl* = enum
     host
@@ -21,8 +20,9 @@ template nudl_announce: untyped =
     ))
 
 macro cuda*(prefix: CudaDecl, val: untyped): untyped =
-  val.addPragma(newColonExpr(ident"exportc", newLit(
-      fmt"__nudl{prefix}__{val.name}")))
+  val.addPragma(ident"exportc")
+  val.addPragma(newColonExpr(ident"codegenDecl", newLit(
+      fmt"__{prefix}__ $# $#$#")))
   val.addPragma(ident"cdecl")
   nnkStmtList.newTree(nudl_announce, val)
 
@@ -34,24 +34,10 @@ macro invoke*(numBlocks, blockSize: uint, val: untyped): untyped =
         nnkPragma.newTree(
         newColonExpr(
           newIdentNode("emit"),
-          newLit(fmt"//nudlinvoke __nudlglobal__{name} __nudlglobal__{name}<<<{numBlocks.repr}, {blockSize.repr}>>>")
+          newLit(fmt"void invoke_{name} {{name}<<<{numBlocks.repr}, {blockSize.repr}>>>};")
         )), val)
     else:
       error("Cannot invoke this")
-
-# {.emit: """
-# #ifndef __NUDL__
-# #define __NUDL__
-# #define NUDLGLOBAL __global__
-# #define NUDLDEVICE __device__
-# #define NUDLHOST __host__
-# #define NUDLNOINLINE __noinline__
-# #define NUDLFORCEINLINE __forceinline__
-# #define NUDLCONSTANT __constant__
-# #define NUDLSHARED __shared__
-# #define NUDLRESTRICT __restrict__
-# #endif
-# """.}
 
 let threadIdx* {.importc, used, nodecl.}: uint3
 let blockIdx* {.importc, used, nodecl.}: uint3
@@ -75,8 +61,8 @@ type
 
   GpuPointer*[T] =  ptr[T]
   GpuArray*[T] = object
-    data: ref[GpuPointer[T]]
-    len: int
+    data*: ref[GpuPointer[T]]
+    len*: int
 
 
 proc cudaMalloc*[T](size: int): ptr T {.noSideEffect.} =
