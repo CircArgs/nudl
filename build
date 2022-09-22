@@ -1,8 +1,5 @@
 #!/bin/sh
 rm -rf $PWD/cache
-mkdir $PWD/cache
-cp $PWD/nimbase.h $PWD/cache
-rm $PWD/commands.txt
 
 # --nimcache:$PWD/cache \
 # we use our own cache just so we can read the code

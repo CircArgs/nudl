@@ -1,5 +1,5 @@
 import nimcuda/[cuda_runtime_api, nimcuda, vector_types]
-import macros, strformat
+import macros, strformat, tables, strutils
 import fusion/matching
 {.experimental: "caseStmtMacros".}
 
@@ -12,30 +12,68 @@ type
     noinline
     forceinline
 
-template nudl_announce: untyped =
-  nnkPragma.newTree(
-      newColonExpr(
-        newIdentNode("emit"),
-        newLit("//nudl was here!!!")
-    ))
+var nudlNumBlocks* {.exportc: "__nudlNumBlocks".}: dim3
+var nudlBlockSize* {.exportc: "__nudlBlockSize".}: dim3
+
+
+proc rep_string(s: string): string =
+  s.multiReplace(("`", "BackTick"), ("+", "Add"), ("-", "Sub"), ("*", "Mul"), ("/", "Div"), ("=",
+      "Eq"), (
+    "[", "LeftSquareBracket"), ("]", "RightSquareBracket"), ("(", "LeftParen"), (
+    ")", "RightParen"), ("{", "LeftCurlyBracket"), ("}", "RightCurlyBracket"))
 
 macro cuda*(prefix: CudaDecl, val: untyped): untyped =
-  val.addPragma(ident"exportc")
-  val.addPragma(newColonExpr(ident"codegenDecl", newLit(
-      fmt"__{prefix}__ $# $#$#")))
-  val.addPragma(ident"cdecl")
-  nnkStmtList.newTree(nudl_announce, val)
-
-macro invoke*(numBlocks, blockSize: uint, val: untyped): untyped =
   case val:
-    of Call[Ident(strVal: @name), .._]:
+    of ProcDef[@name, _, @generic, FormalParams[any @params], .._]:
+      var new_name = name
+      var str_name = ""
+      case name:
+        of Postfix[@exp, @name]:
+          str_name = rep_string(fmt"__nudl{name.repr}")
+          new_name = nnkPostfix.newTree(exp, ident(rep_string(
+              fmt"launch_{name.repr}")))
+        else:
+          str_name = rep_string(fmt"__nudl{name.repr}")
+          new_name = ident(rep_string(fmt"launch_{name.repr}"))
+      val.addPragma(newColonExpr(ident"exportc", newLit(fmt"{str_name}")))
+      val.addPragma(newColonExpr(ident"codegenDecl", newLit(
+          fmt"__{prefix}__ $# {str_name}$3")))
+      # val.addPragma(ident"cdecl")
+      if prefix.repr != "global":
+        return val
       result = nnkStmtList.newTree(
-        nudl_announce,
-        nnkPragma.newTree(
-        newColonExpr(
-          newIdentNode("emit"),
-          newLit(fmt"void invoke_{name} {{name}<<<{numBlocks.repr}, {blockSize.repr}>>>};")
-        )), val)
+        val,
+        newProc(
+          new_name,
+          params,
+          newEmptyNode(),
+          nnkProcDef,
+          nnkPragma.newTree(
+            newColonExpr(
+              ident"importc",
+              newLit(fmt"{str_name}<<<__nudlNumBlocks, __nudlBlockSize>>>")
+        ),
+        ident"nodecl")
+      ))
+    else:
+      error(fmt"Cannot declare this as {prefix}")
+  echo result.repr
+
+
+macro launch*(numBlocks, blockSize: dim3, val: untyped): untyped =
+  case val:
+    of Call[Ident(strVal: @name), any @args]:
+      result = nnkStmtList.newTree(
+          nnkAsgn.newTree(
+            newIdentNode("nudlNumBlocks"),
+            numBlocks
+        ),
+          nnkAsgn.newTree(
+            newIdentNode("nudlBlockSize"),
+            blockSize
+        ),
+        newCall(ident(rep_string(fmt"launch_{name}")), args)
+      )
     else:
       error("Cannot invoke this")
 
@@ -57,9 +95,9 @@ template threadfence_block*(): untyped =
 template threadfence_system*(): untyped =
   {.emit: "__threadfence_system()".}
 
-type 
+type
 
-  GpuPointer*[T] =  ptr[T]
+  GpuPointer*[T] = ptr[T]
   GpuArray*[T] = object
     data*: ref[GpuPointer[T]]
     len*: int
@@ -101,18 +139,18 @@ proc cpu*[T](g: GpuArray[T]): seq[T] {.noSideEffect.} =
 proc `[]`*[T](g: GpuArray[T]): GpuPointer[T] =
   g.data[]
 
-proc `[]`*[T](g: GpuPointer[T], i: uint): T {.exportc: "__nudldevice__GpuPointer_getitem",  inline.}=
+proc `[]`*[T](g: GpuPointer[T], i: uint): T {.cuda: device, inline.} =
   {.push checks: off.}
   let offset = cast[uint](i)*cast[uint](sizeof(cfloat))
   let offset_addr = cast[ptr[cfloat]](cast[uint](g) + offset)
   result = offset_addr[]
   {.pop.}
 
-proc `[]=`*[T](g: GpuPointer[T], i: uint, y: T) {.exportc: "__nudldevice__GpuPointer_setitem", inline.} =
+proc `[]=`*[T](g: GpuPointer[T], i: uint, y: T) {.cuda: device, inline.} =
   {.push checks: off.}
   let offset = cast[uint](i)*cast[uint](sizeof(cfloat))
   let offset_addr = cast[ptr[cfloat]](cast[uint](g) + offset)
-  offset_addr[]= y
+  offset_addr[] = y
   {.pop.}
 
 converter `ptr[T]`*[T](g: GpuArray[T]): GpuPointer[T] =
