@@ -17,30 +17,33 @@ var nudlBlockSize* {.exportc: "__nudlBlockSize".}: dim3
 
 
 proc rep_string(s: string): string =
-  s.multiReplace(("`", "BackTick"), ("+", "Add"), ("-", "Sub"), ("*", "Mul"), ("/", "Div"), ("=",
-      "Eq"), (
-    "[", "LeftSquareBracket"), ("]", "RightSquareBracket"), ("(", "LeftParen"), (
-    ")", "RightParen"), ("{", "LeftCurlyBracket"), ("}", "RightCurlyBracket"))
-
+  s.multiReplace((":", "Cn"), ("`", "BT"), (",", "Ca"), (" ", "_"),
+      ("+", "A"), ("-", "S"), ("*", "M"), ("/", "D"), ("=", "E"), (
+    "[", "LSB"), ("]", "RSB"), ("(", "LP"), (
+    ")", "RP"), ("{", "LCB"), ("}", "RCB"))
+# {.emit: """#  define NUDL_GEN_DECL(rettype, name) rettype name ##_ ##rettype""".}
 macro cuda*(prefix: CudaDecl, val: untyped): untyped =
   case val:
     of ProcDef[@name, _, @generic, FormalParams[any @params], .._]:
-      var new_name = name
-      var str_name = ""
+      var new_name = name # name in Nim for function used to launch kernel
+      var str_name = "" # name in C
       case name:
         of Postfix[@exp, @name]:
           str_name = rep_string(fmt"__nudl{name.repr}")
           new_name = nnkPostfix.newTree(exp, ident(rep_string(
-              fmt"launch_{name.repr}")))
+              fmt"launch_{name.repr}"))) # launch_ used in launch macro
         else:
           str_name = rep_string(fmt"__nudl{name.repr}")
-          new_name = ident(rep_string(fmt"launch_{name.repr}"))
+          new_name = ident(rep_string(fmt"launch_{name.repr}")) # launch_ used in launch macro
+
+      # val.addPragma(ident"cdecl")
+      if prefix.repr != "global":
+        val.addPragma(newColonExpr(ident"codegenDecl", newLit(
+          fmt"__{prefix}__ $# $#$#")))
+        return val
       val.addPragma(newColonExpr(ident"exportc", newLit(fmt"{str_name}")))
       val.addPragma(newColonExpr(ident"codegenDecl", newLit(
           fmt"__{prefix}__ $# {str_name}$3")))
-      # val.addPragma(ident"cdecl")
-      if prefix.repr != "global":
-        return val
       result = nnkStmtList.newTree(
         val,
         newProc(
@@ -57,7 +60,7 @@ macro cuda*(prefix: CudaDecl, val: untyped): untyped =
       ))
     else:
       error(fmt"Cannot declare this as {prefix}")
-  echo result.repr
+  # echo result.repr
 
 
 macro launch*(numBlocks, blockSize: dim3, val: untyped): untyped =
@@ -142,16 +145,17 @@ proc `[]`*[T](g: GpuArray[T]): GpuPointer[T] =
 proc `[]`*[T](g: GpuPointer[T], i: uint): T {.cuda: device, inline.} =
   {.push checks: off.}
   let offset = cast[uint](i)*cast[uint](sizeof(cfloat))
-  let offset_addr = cast[ptr[cfloat]](cast[uint](g) + offset)
+  let offset_addr = cast[ptr[T]](cast[uint](g) + offset)
   result = offset_addr[]
   {.pop.}
 
 proc `[]=`*[T](g: GpuPointer[T], i: uint, y: T) {.cuda: device, inline.} =
   {.push checks: off.}
   let offset = cast[uint](i)*cast[uint](sizeof(cfloat))
-  let offset_addr = cast[ptr[cfloat]](cast[uint](g) + offset)
+  let offset_addr = cast[ptr[T]](cast[uint](g) + offset)
   offset_addr[] = y
   {.pop.}
 
 converter `ptr[T]`*[T](g: GpuArray[T]): GpuPointer[T] =
   g[]
+

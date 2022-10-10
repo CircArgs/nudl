@@ -14,7 +14,7 @@ def get_nim_c_files(cmd):
 
 
 
-DEBUG = False
+DEBUG = True
 
 def catch_run(cmd):
     proc = subprocess.Popen(
@@ -54,7 +54,7 @@ def run(cmd):
     return stdout[0].decode("utf-8").strip()
 
 
-unknown_option = re.compile(r".*?Unknown option\s+'(?P<option>.*)'.*")
+unknown_option = re.compile(r".*?(Unknown option|not defined)\s+'(?P<option>.*)'.*")
 
 
 def try_command(cmd):

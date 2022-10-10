@@ -1,19 +1,25 @@
-import nimcuda/[cuda_runtime_api, driver_types, nimcuda, vector_types]
-import sequtils, sugar
+import nimcuda/[cuda_runtime_api, driver_types, nimcuda]
+import sequtils, future
 
 type GpuArray[T] = object
   data: ref[ptr T]
   len: int
 
 {.emit: """
-        __global__ void cuda_square(float * d_out, float * d_in){
+        __global__ void square(float * d_out, float * d_in){
             int idx = threadIdx.x;
             float f = d_in[idx];
             d_out[idx] = f * f;
         }
+        
+        
+        void cuda_square(int bpg, int tpb, float * d_out, float * d_in){
+            square<<<bpg,tpb>>>(d_out, d_in);
+        }
+        
         """.}
 
-proc cuda_square(y: ptr cfloat, x: ptr cfloat) {.importc, nodecl.}
+proc cuda_square(bpg, tpb: cint, y: ptr cfloat, x: ptr cfloat) {.importc.}
 ## Compute the square of x and store it in y
 ## bpg: BlocksPerGrid
 ## tpb: ThreadsPerBlock
@@ -62,8 +68,8 @@ proc main() =
   
   var u = a.cuda
   let v = b.cuda
-  let args = [u.data[], v.data[]]
-  check cudaLaunchKernel(cuda_square, dim3(x: 1, y: 1, z: 1), dim3(x: 64, y: 1, z: 1), cast[ptr pointer](unsafeAddr args), 0, nil)
+  
+  cuda_square(1.cint, 64.cint, u.data[],v.data[])
   
   check cudaDeviceSynchronize()
   

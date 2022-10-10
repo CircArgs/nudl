@@ -8,8 +8,12 @@ from pathlib import Path
 from utils import *
 
 command = sys.stdin.read().strip()
-command = command.replace("nvcc -c", "nvcc -c --x cu")
-
+rm=["-std=gnu++14"]
+for r in rm:
+    command=command.replace(r, "-std=gnu++11")
+# rm=["-std=gnu++14"]
+# for r in rm:
+#     command=command.replace(r, "")
 # nim_files = get_nim_c_files(command)
 
 # for f in nim_files:

@@ -13,4 +13,4 @@ nim c \
 --gcc.options.speed: "-Xcompiler -O3" \
 --gcc.options.size: "-Xcompiler -Os" \
 --gcc.options.always:"--x cu" \
-src/cuda.nim
+src/test.nim
